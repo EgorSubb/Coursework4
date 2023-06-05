@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 import os
 import requests
-import json
 
 
 class ParsingError(Exception):
@@ -9,6 +8,12 @@ class ParsingError(Exception):
 
     def __str__(self):
         return 'Ошибка получения данных по API'
+
+
+class ComparisonError(Exception):
+    """Класс ошибки при сравнении вакансий"""
+    def __str__(self):
+        return "Ошибка в сравнении.\nВ одной из вакансий не указана з/п"
 
 
 class ApiABCClass(ABC):
@@ -38,6 +43,10 @@ class HeadHunter(ApiABCClass):
             "per_page": 100}
         self.__vacancies = []
 
+    @property
+    def vacancies(self):
+        return self.__vacancies
+
     def get_request(self):
         """Запрос по вакансиям Head Hunter"""
         response = requests.get('https://api.hh.ru/vacancies', headers=self.__header, params=self.__params)
@@ -46,11 +55,11 @@ class HeadHunter(ApiABCClass):
         return response.json()['items']
 
     def get_vacancies(self, keyword, page_count=1):
-        """Получает данные по вакансиям с Head Hunter"""
+        """Получает данные по вакансиям с Head Hunter по ключевому слову"""
         self.__params["text"] = keyword
 
         while self.__params['page'] < page_count:
-            print(f"Cобираем информацию HH со страницы{self.__params['page'] + 1}", end=": ")
+            print(f"Cобираем информацию HH со страницы {self.__params['page'] + 1}", end=": ")
             try:
                 values = self.get_request()
             except ParsingError:
@@ -83,10 +92,6 @@ class HeadHunter(ApiABCClass):
                     "salary_currency"] = None
         return formatted_vacancies
 
-    @property
-    def vacancies(self):
-        return self.__vacancies
-
 
 class SuperJobAPI(ApiABCClass):
     """Класс, который получает список вакансий с Super Job и преобразовывает их к общему формату"""
@@ -95,8 +100,8 @@ class SuperJobAPI(ApiABCClass):
         self.__params = {
             "keyword": None,
             "page": 0,
-            "count": 100
-        }
+            "count": 100}
+
         self.__vacancies = []
 
     def get_request(self):
@@ -109,11 +114,11 @@ class SuperJobAPI(ApiABCClass):
         return response.json()['objects']
 
     def get_vacancies(self, keyword, page_count=1):
-        """Получает данные по вакансиям с Super Job"""
+        """Получает данные по вакансиям с Super Job по ключевому слову"""
         self.__params["keyword"] = keyword
-        print(f"Cобираем информацию SJ со страницы{self.__params['page'] + 1}", end=": ")
-        while self.__params['page'] < page_count:
+        print(f"Cобираем информацию SJ со страницы {self.__params['page'] + 1}", end=": ")
 
+        while self.__params['page'] < page_count:
             try:
                 values = self.get_request()
             except ParsingError:
@@ -148,7 +153,7 @@ class SuperJobAPI(ApiABCClass):
 
 
 class Vacancy:
-    """Каласс работы с вакансиями"""
+    """Класс работы с вакансиями"""
 
     __slots__ = ['source', 'id', 'title', 'employer', 'link', 'area', 'salary_from', 'salary_to', 'salary_currency']
     all_vacancies = []
@@ -177,34 +182,41 @@ class Vacancy:
                    salary_currency:{self.salary_currency}"""
 
     def __lt__(self, other):
-        """Сравниваем зарплатную вилку"""
-        if not self.salary_from and not self.salary_to:
-            return True
-        elif not self.salary_from:
-            if not other.salary_from and not other.salary_to:
-                return False
-            elif not other.salary_to:
-                return self.salary_to <= other.salary_from
-            elif not other.salary_from:
-                return self.salary_to <= other.salary_to
-            else:
-                if self.salary_to > other.salary_from:
-                    return (self.salary_to < other.salary_to)
-        elif self.salary_from and not self.salary_to:
-            if not other.salary_from and not other.salary_to:
-                return False
-            elif not other.salary_to:
-                return self.salary_from <= other.salary_from
-            elif not other.salary_from:
-                return self.salary_from < other.salary_to
-            else:
-                return (self.salary_from <= other.salary_from) and (self.salary_from < other.salary_to)
+        """Сравнение по з/п"""
+        if self.salary_from is None or other.__salary_from is None:
+            raise ComparisonError
         else:
-            if not other.salary_from and not other.salary_to:
-                return False
-            elif not other.salary_to:
-                return (self.salary_from <= other.salary_from) and (self.salary_to <= other.salary_from)
-            elif not other.salary_from:
-                return (self.salary_from <= other.salary_to) and (self.salary_to <= other.salary_to)
+            if self.salary_from < other.__salary_from:
+                return True
             else:
-                return (self.salary_from <= other.salary_from) and (self.salary_to < other.salary_to)
+                return False
+
+    def __le__(self, other):
+        """Сравнение по з/п"""
+        if self.salary_from is None or other.__salary_from is None:
+            raise ComparisonError
+        else:
+            if self.salary_from <= other.__salary_from:
+                return True
+            else:
+                return False
+
+    def __gt__(self, other):
+        """Сравнение по з/п"""
+        if self.salary_from is None or other.__salary_from is None:
+            raise ComparisonError
+        else:
+            if self.salary_from > other.__salary_from:
+                return True
+            else:
+                return False
+
+    def __ge__(self, other):
+        """Сравнение по з/п"""
+        if self.salary_from is None or other.__salary_from is None:
+            raise ComparisonError
+        else:
+            if self.salary_from >= other.__salary_from:
+                return True
+            else:
+                return False
