@@ -50,14 +50,13 @@ class HeadHunter(ApiABCClass):
         self.__params["text"] = keyword
 
         while self.__params['page'] < page_count:
-
-            print(f"HeadHunter, Парсинг страницы {self.__params['page'] + 1}", end=": ")
+            print(f"Cобираем информацию HH со страницы{self.__params['page'] + 1}", end=": ")
             try:
                 values = self.get_request()
             except ParsingError:
                 print('Ошибка при получении данных')
                 break
-            print(f"Всего {len(values)} вакансий.")
+            print(f"{len(values)} вакансий всего.")
             self.__vacancies.extend(values)
             self.__params['page'] += 1
 
@@ -71,8 +70,10 @@ class HeadHunter(ApiABCClass):
                 "title": item["name"],
                 "client": item["employer"]["name"],
                 "link": item["alternate_url"],
-                "area": item["area"]["name"]
-            })
+                "area": item["area"]["name"]})
+
+            # Отсматриваем исключения, если вилка З/П не указана
+
             if item["salary"] is not None:
                 formatted_vacancies[-1]["salary_from"] = item["salary"]["from"]
                 formatted_vacancies[-1]["salary_to"] = item["salary"]["to"]
@@ -110,16 +111,15 @@ class SuperJobAPI(ApiABCClass):
     def get_vacancies(self, keyword, page_count=1):
         """Получает данные по вакансиям с Super Job"""
         self.__params["keyword"] = keyword
-
+        print(f"Cобираем информацию SJ со страницы{self.__params['page'] + 1}", end=": ")
         while self.__params['page'] < page_count:
 
-            print(f"SuperJob, Парсинг страницы {self.__params['page'] + 1}", end=": ")
             try:
                 values = self.get_request()
             except ParsingError:
                 print('Ошибка при получении данных')
                 break
-            print(f"Всего {len(values)} вакансий")
+            print(f"{len(values)} вакансий всего")
             self.__vacancies.extend(values)
             self.__params['page'] += 1
 
@@ -136,10 +136,75 @@ class SuperJobAPI(ApiABCClass):
                 "area": item["town"]["title"],
                 "salary_from": item["payment_from"],
                 "salary_to": item["payment_to"],
-                "salary_currency": item["currency"]
-            })
+                "salary_currency": item["currency"]})
+
+            # Отсматриваем исключения, если вилка З/П не указана
+
             if formatted_vacancies[-1]["salary_from"] == 0:
                 formatted_vacancies[-1]["salary_from"] = None
             if formatted_vacancies[-1]["salary_to"] == 0:
                 formatted_vacancies[-1]["salary_to"] = None
         return formatted_vacancies
+
+
+class Vacancy:
+    """Каласс работы с вакансиями"""
+
+    __slots__ = ['source', 'id', 'title', 'employer', 'link', 'area', 'salary_from', 'salary_to', 'salary_currency']
+    all_vacancies = []
+
+    def __init__(self, enter_dict: dict):
+        """Инициализация класса"""
+        self.source = enter_dict['source']
+        self.id = enter_dict['id']
+        self.title = enter_dict['title']
+        self.employer = enter_dict['client']
+        self.link = enter_dict['link']
+        self.area = enter_dict['area']
+        self.salary_from = enter_dict['salary_from']
+        self.salary_to = enter_dict['salary_to']
+        self.salary_currency = enter_dict['salary_currency']
+        self.all_vacancies.append(self)
+
+    def __str__(self):
+        """Информация о вакансии для пользователя"""
+        return f"""Вакансия {self.title} с ресурса {self.source}"""
+
+    def __repr__(self):
+        """Информация о вакансии для разработчика"""
+        return f"""Vacancy(source:{self.source}, id:{self.id}, title:{self.title}, employer:{self.employer},
+                   link:{self.link}, area:{self.area}, salary_from:{self.salary_from}, salary_to:{self.salary_to},
+                   salary_currency:{self.salary_currency}"""
+
+    def __lt__(self, other):
+        """Сравниваем зарплатную вилку"""
+        if not self.salary_from and not self.salary_to:
+            return True
+        elif not self.salary_from:
+            if not other.salary_from and not other.salary_to:
+                return False
+            elif not other.salary_to:
+                return self.salary_to <= other.salary_from
+            elif not other.salary_from:
+                return self.salary_to <= other.salary_to
+            else:
+                if self.salary_to > other.salary_from:
+                    return (self.salary_to < other.salary_to)
+        elif self.salary_from and not self.salary_to:
+            if not other.salary_from and not other.salary_to:
+                return False
+            elif not other.salary_to:
+                return self.salary_from <= other.salary_from
+            elif not other.salary_from:
+                return self.salary_from < other.salary_to
+            else:
+                return (self.salary_from <= other.salary_from) and (self.salary_from < other.salary_to)
+        else:
+            if not other.salary_from and not other.salary_to:
+                return False
+            elif not other.salary_to:
+                return (self.salary_from <= other.salary_from) and (self.salary_to <= other.salary_from)
+            elif not other.salary_from:
+                return (self.salary_from <= other.salary_to) and (self.salary_to <= other.salary_to)
+            else:
+                return (self.salary_from <= other.salary_from) and (self.salary_to < other.salary_to)
