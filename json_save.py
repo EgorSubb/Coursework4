@@ -29,7 +29,7 @@ class JSONSaver(JsonABC):
     def save_to_json(self):
         """Сохраняет данные в файл в формате json"""
         with open('data.json', 'w', encoding='utf-8') as file:
-            json.dump(self.data, file)
+            json.dump(self.data, file, ensure_ascii=False)
 
     def delete_vacancy(self, vacancy_id: int):
         """Удаляет вакансию из файла"""
@@ -46,7 +46,7 @@ class JSONSaver(JsonABC):
             data.remove(del_dict)
         self.data = data
         file = open('data.json', 'w', encoding='utf-8')
-        json.dump(data, file)
+        json.dump(data, file, ensure_ascii=False)
         file.close()
 
     def get_vacancies_by_salary(self, salary_min: int, salary_max: int):
